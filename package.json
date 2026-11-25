@@ -1,8 +1,11 @@
 {
-  "name": "env-drift",
+  "name": "@subramanyaks/env-drift",
   "version": "1.0.0",
   "description": "Zero-config CLI and library to detect environment variable drift, missing keys, dead vars, and accidental public secret exposure.",
   "type": "module",
+  "publishConfig": {
+    "access": "public"
+  },
   "main": "./dist/index.cjs",
   "module": "./dist/index.js",
   "types": "./dist/index.d.ts",

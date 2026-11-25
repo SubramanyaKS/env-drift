@@ -1,29 +1,29 @@
-# env-drift
+# @subramanyaks/env-drift
 
-[![npm version](https://img.shields.io/npm/v/env-drift.svg)](https://www.npmjs.com/package/env-drift)
-[![npm downloads](https://img.shields.io/npm/dm/env-drift.svg)](https://www.npmjs.com/package/env-drift)
+[![npm version](https://img.shields.io/npm/v/@subramanyaks/env-drift.svg)](https://www.npmjs.com/package/@subramanyaks/env-drift)
+[![npm downloads](https://img.shields.io/npm/dm/@subramanyaks/env-drift.svg)](https://www.npmjs.com/package/@subramanyaks/env-drift)
 [![CI](https://github.com/SubramanyaKS/env-drift/actions/workflows/ci.yml/badge.svg)](https://github.com/SubramanyaKS/env-drift/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE)
 
 Zero-config CLI and TypeScript library that detects **environment variable drift**, **missing keys**, **dead vars**, and **accidental public secret exposure** across JS, TS, React, Next.js, Vite, and Node.js projects.
 
-## Why `env-drift`?
+## Why `@subramanyaks/env-drift`?
 
-Runtime validators (`envalid`, `t3-env`) are great, but they require adding code and only fail *after* your app boots. `env-drift` statically audits your repo in milliseconds with **zero setup**:
+Runtime validators are great, but they require adding code and only fail *after* your app boots. `env-drift` statically audits your repo in milliseconds with **zero setup**:
 
 - **Missing in `.env`** — Catch `process.env.STRIPE_KEY` or `import.meta.env.VITE_API_URL` before runtime crashes.
 - **Missing in `.env.example`** — Keep teammate onboarding in sync (with `--sync` to safely append `KEY=` placeholders without ever copying secret values).
 - **Unused / Dead vars** — Spot stale keys left behind in `.env` and `.env.example`.
 - **Public Secret Exposure** — Flags dangerous client-exposed names like `NEXT_PUBLIC_DB_PASSWORD` or `VITE_JWT_SECRET`.
 - **Type Generation** — Auto-generate `env.d.ts` (`NodeJS.ProcessEnv` + `ImportMetaEnv`) with `--types`.
-- **CI Ready** — Drop `npx env-drift --ci` into GitHub Actions to fail PRs on drift or leaked public secrets.
+- **CI Ready** — Drop `npx @subramanyaks/env-drift --ci` into GitHub Actions to fail PRs on drift or leaked public secrets.
 
 ## Quick Start
 
 Run directly in any project with `npx`:
 
 ```bash
-npx env-drift
+npx @subramanyaks/env-drift
 ```
 
 ### Example Output
@@ -68,16 +68,16 @@ Tip: Run with --sync to safely append missing keys to .env.example.
 
 ```bash
 # Sync missing keys into .env.example (empty placeholders only)
-npx env-drift --sync
+npx @subramanyaks/env-drift --sync
 
 # Generate env.d.ts for TypeScript autocomplete
-npx env-drift --types
+npx @subramanyaks/env-drift --types
 
 # Run in CI (fails build on missing vars or public secret leaks)
-npx env-drift --ci
+npx @subramanyaks/env-drift --ci
 
 # Ignore specific platform variables
-npx env-drift --ignore VERCEL_URL,RAILWAY_ENVIRONMENT
+npx @subramanyaks/env-drift --ignore VERCEL_URL,RAILWAY_ENVIRONMENT
 ```
 
 ## GitHub Actions CI Recipe
@@ -86,7 +86,7 @@ Add this step to your `.github/workflows/ci.yml` to block PRs with undocumented 
 
 ```yaml
 - name: Check environment drift
-  run: npx env-drift --ci
+  run: npx @subramanyaks/env-drift --ci
 ```
 
 ## Programmatic API
@@ -94,11 +94,11 @@ Add this step to your `.github/workflows/ci.yml` to block PRs with undocumented 
 Install as a dev dependency to use in custom scripts:
 
 ```bash
-npm install -D env-drift
+npm install -D @subramanyaks/env-drift
 ```
 
 ```ts
-import { auditEnv, hasBlockingIssues } from "env-drift";
+import { auditEnv, hasBlockingIssues } from "@subramanyaks/env-drift";
 
 const result = auditEnv({
   rootDir: process.cwd(),

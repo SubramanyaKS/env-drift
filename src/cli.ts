@@ -9,10 +9,10 @@ import { writeEnvTypes } from "./typegen.js";
 const VERSION = "1.0.0";
 
 const HELP_TEXT = `
-${pc.bold(pc.cyan("env-drift"))} v${VERSION} — Detect environment variable drift and public secret leaks
+${pc.bold(pc.cyan("@subramanyaks/env-drift"))} v${VERSION} — Detect environment variable drift and public secret leaks
 
 ${pc.bold("Usage:")}
-  npx env-drift [options]
+  npx @subramanyaks/env-drift [options]
 
 ${pc.bold("Options:")}
   -d, --dir <path>        Project directory to scan (default: ".")
@@ -126,7 +126,9 @@ export function runCli(argv: string[] = process.argv.slice(2)): number {
 
 const isDirectExecution =
   process.argv[1] &&
-  (process.argv[1].endsWith("cli.js") || process.argv[1].endsWith("env-drift"));
+  (process.argv[1].endsWith("cli.js") ||
+    process.argv[1].endsWith("env-drift") ||
+    process.argv[1].endsWith("env-drift-cli"));
 
 if (isDirectExecution) {
   process.exitCode = runCli();
