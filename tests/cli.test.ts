@@ -64,4 +64,43 @@ describe("CLI end-to-end", () => {
     expect(existsSync(typesPath)).toBe(true);
     expect(readFileSync(typesPath, "utf-8")).toContain("DATABASE_URL: string;");
   });
+
+  it("exits 0 in --ci mode when .env is absent (gitignored) and .env.example is in sync", () => {
+    writeFileSync(join(tempDir, "src", "index.ts"), "export const url = process.env.API_URL;\n");
+    writeFileSync(join(tempDir, ".env.example"), "API_URL=\n");
+
+    const code = runCli(["--dir", tempDir, "--ci"]);
+    expect(code).toBe(0);
+
+    const output = logSpy.mock.calls.map((c: unknown[]) => String(c[0])).join("\n");
+    expect(output).toContain("No environment drift detected");
+  });
+
+  it("still exits 1 in --ci mode when .env is absent but .env.example is missing keys", () => {
+    writeFileSync(join(tempDir, "src", "index.ts"), "export const url = process.env.API_URL;\n");
+    writeFileSync(join(tempDir, ".env.example"), "");
+
+    const code = runCli(["--dir", tempDir, "--ci"]);
+    expect(code).toBe(1);
+  });
+
+  it("clears synced keys from the report and passes --ci after --sync", () => {
+    writeFileSync(join(tempDir, "src", "index.ts"), "export const k = process.env.DATABASE_URL;\n");
+    writeFileSync(join(tempDir, ".env"), "DATABASE_URL=postgres://secret\n");
+
+    const code = runCli(["--dir", tempDir, "--sync", "--ci", "--json"]);
+    expect(code).toBe(0);
+
+    const output = logSpy.mock.calls.map((c: unknown[]) => c[0]).join("\n");
+    const parsed = JSON.parse(output);
+    expect(parsed.missingInExample).toEqual([]);
+    expect(parsed.exampleFileExists).toBe(true);
+  });
+
+  it("prints package.json version with --version", () => {
+    const pkg = JSON.parse(readFileSync(join(process.cwd(), "package.json"), "utf-8"));
+    const code = runCli(["--version"]);
+    expect(code).toBe(0);
+    expect(logSpy).toHaveBeenCalledWith(pkg.version);
+  });
 });

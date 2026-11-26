@@ -75,4 +75,19 @@ UNUSED_EXAMPLE=
     expect(detectSecretExposure("NEXT_PUBLIC_APP_URL")).toBeNull();
     expect(detectSecretExposure("JWT_SECRET")).toBeNull();
   });
+
+  it("tracks envFileExists and exampleFileExists accurately", () => {
+    writeFileSync(join(tempDir, "src", "app.ts"), "export const k = process.env.API_KEY;\n");
+
+    const none = auditEnv({ rootDir: tempDir });
+    expect(none.envFileExists).toBe(false);
+    expect(none.exampleFileExists).toBe(false);
+
+    writeFileSync(join(tempDir, ".env.local"), "API_KEY=123\n");
+    writeFileSync(join(tempDir, ".env.example"), "API_KEY=\n");
+
+    const localOnly = auditEnv({ rootDir: tempDir });
+    expect(localOnly.envFileExists).toBe(true);
+    expect(localOnly.exampleFileExists).toBe(true);
+  });
 });

@@ -1,12 +1,15 @@
+import { realpathSync } from "node:fs";
 import { resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
 import pc from "picocolors";
+import pkg from "../package.json" with { type: "json" };
 import { auditEnv } from "./analyzer.js";
 import { syncEnvExample } from "./envParser.js";
 import { formatAuditReport, hasBlockingIssues } from "./reporter.js";
 import { writeEnvTypes } from "./typegen.js";
 
-const VERSION = "1.0.0";
+const VERSION = pkg.version;
 
 const HELP_TEXT = `
 ${pc.bold(pc.cyan("@subramanyaks/env-drift"))} v${VERSION} — Detect environment variable drift and public secret leaks
@@ -88,11 +91,16 @@ export function runCli(argv: string[] = process.argv.slice(2)): number {
   if (values.sync && result.missingInExample.length > 0) {
     const examplePath = resolve(rootDir, exampleFile);
     const synced = syncEnvExample(examplePath, result.missingInExample);
-    if (!values.json && synced.added.length > 0) {
-      const action = synced.created ? "Created" : "Updated";
-      console.log(
-        pc.green(`✔ ${action} ${exampleFile} with ${synced.added.length} key(s): ${synced.added.join(", ")}`)
-      );
+    if (synced.added.length > 0) {
+      const addedSet = new Set(synced.added);
+      result.missingInExample = result.missingInExample.filter((k) => !addedSet.has(k));
+      result.exampleFileExists = true;
+      if (!values.json) {
+        const action = synced.created ? "Created" : "Updated";
+        console.log(
+          pc.green(`✔ ${action} ${exampleFile} with ${synced.added.length} key(s): ${synced.added.join(", ")}`)
+        );
+      }
     }
   }
 
@@ -113,6 +121,7 @@ export function runCli(argv: string[] = process.argv.slice(2)): number {
       formatAuditReport(result, {
         envFile: envFile ?? ".env",
         exampleFile,
+        ci: Boolean(values.ci),
       })
     );
   }
@@ -124,12 +133,20 @@ export function runCli(argv: string[] = process.argv.slice(2)): number {
   return 0;
 }
 
-const isDirectExecution =
-  process.argv[1] &&
-  (process.argv[1].endsWith("cli.js") ||
-    process.argv[1].endsWith("env-drift") ||
-    process.argv[1].endsWith("env-drift-cli"));
+function isDirectExecution(): boolean {
+  const entry = process.argv[1];
+  if (!entry) return false;
+  try {
+    return realpathSync(entry) === realpathSync(fileURLToPath(import.meta.url));
+  } catch {
+    return (
+      entry.endsWith("cli.js") ||
+      entry.endsWith("env-drift") ||
+      entry.endsWith("env-drift-cli")
+    );
+  }
+}
 
-if (isDirectExecution) {
+if (isDirectExecution()) {
   process.exitCode = runCli();
 }

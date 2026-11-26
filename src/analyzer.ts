@@ -87,9 +87,13 @@ export function auditEnv(options: AuditOptions = {}): AuditResult {
   const parsedExample = parseEnvFile(resolve(rootDir, exampleFileName));
 
   // If using the default `.env`, also recognize keys defined in `.env.local`
+  let envFileExists = parsedEnv.exists;
   const localEnvKeys = new Set(parsedEnv.keys);
   if (!options.envFile) {
     const parsedLocal = parseEnvFile(resolve(rootDir, ".env.local"));
+    if (parsedLocal.exists) {
+      envFileExists = true;
+    }
     for (const key of parsedLocal.keys) {
       localEnvKeys.add(key);
     }
@@ -138,6 +142,8 @@ export function auditEnv(options: AuditOptions = {}): AuditResult {
   return {
     rootDir,
     scannedFiles,
+    envFileExists,
+    exampleFileExists: parsedExample.exists,
     usedInCode,
     missingInEnv,
     missingInExample,

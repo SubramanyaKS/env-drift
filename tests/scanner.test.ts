@@ -69,4 +69,16 @@ const active = process.env.ACTIVE_KEY;
     expect(scannedFiles).toBe(1);
     expect(references.map((r) => r.name)).toEqual(["APP_KEY"]);
   });
+
+  it("extracts optional-chained bracket access", () => {
+    const code = `
+const a = process.env?.["OPT_KEY"];
+const b = import.meta.env?.['VITE_OPT'];
+`;
+    const refs = extractEnvReferences(code, "src/opt.ts");
+    expect(refs).toEqual([
+      { name: "OPT_KEY", file: "src/opt.ts", line: 2, source: "process.env" },
+      { name: "VITE_OPT", file: "src/opt.ts", line: 3, source: "import.meta.env" },
+    ]);
+  });
 });

@@ -79,9 +79,9 @@ export function extractEnvReferences(
     });
   }
 
-  // 2. Bracket access: process.env["FOO"] / process.env['FOO']
+  // 2. Bracket access: process.env["FOO"] / process.env['FOO'] / process.env?.["FOO"]
   const bracketRegex =
-    /\b(process\.env|import\.meta\.env)\s*\[\s*["']([A-Za-z_][A-Za-z0-9_]*)["']\s*\]/g;
+    /\b(process\.env|import\.meta\.env)\s*(?:\?\.)?\s*\[\s*["']([A-Za-z_][A-Za-z0-9_]*)["']\s*\]/g;
   for (const match of cleaned.matchAll(bracketRegex)) {
     const source = match[1] as "process.env" | "import.meta.env";
     const name = match[2];

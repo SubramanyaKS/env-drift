@@ -1,6 +1,6 @@
 {
   "name": "@subramanyaks/env-drift",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Zero-config CLI and library to detect environment variable drift, missing keys, dead vars, and accidental public secret exposure.",
   "type": "module",
   "publishConfig": {

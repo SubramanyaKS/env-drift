@@ -78,4 +78,14 @@ API_KEY=second
     expect(res).toEqual({ added: ["API_URL"], created: true });
     expect(readFileSync(examplePath, "utf-8")).toBe("API_URL=\n");
   });
+
+  it("parses escaped quotes and newline sequences in double-quoted values", () => {
+    const content = `
+ESCAPED="hello \\"world\\""
+MULTILINE="line1\\nline2"
+`;
+    const result = parseEnvContent(content);
+    expect(result.values.ESCAPED).toBe('hello "world"');
+    expect(result.values.MULTILINE).toBe("line1\nline2");
+  });
 });

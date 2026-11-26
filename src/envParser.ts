@@ -8,8 +8,28 @@ function parseValue(raw: string): string {
   if (!trimmed) return "";
 
   const quote = trimmed[0];
-  if (quote === '"' || quote === "'") {
-    const closingIdx = trimmed.indexOf(quote, 1);
+  if (quote === '"') {
+    let result = "";
+    for (let i = 1; i < trimmed.length; i++) {
+      const ch = trimmed[i]!;
+      if (ch === "\\" && i + 1 < trimmed.length) {
+        const next = trimmed[i + 1]!;
+        if (next === "n") result += "\n";
+        else if (next === "r") result += "\r";
+        else if (next === "t") result += "\t";
+        else result += next;
+        i++;
+      } else if (ch === '"') {
+        return result;
+      } else {
+        result += ch;
+      }
+    }
+    return result;
+  }
+
+  if (quote === "'") {
+    const closingIdx = trimmed.indexOf("'", 1);
     if (closingIdx !== -1) {
       return trimmed.slice(1, closingIdx);
     }

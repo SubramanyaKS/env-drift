@@ -10,10 +10,16 @@ function formatRefs(refs: EnvReference[] | undefined): string {
 
 /**
  * Returns true if the audit found blocking issues (missing vars or exposed public secrets).
+ * When no local `.env` file exists (e.g. in CI where `.env` is gitignored), `missingInEnv`
+ * is skipped by default unless `requireEnvFile` is true.
  */
-export function hasBlockingIssues(result: AuditResult): boolean {
+export function hasBlockingIssues(
+  result: AuditResult,
+  options: { requireEnvFile?: boolean } = {}
+): boolean {
+  const checkMissingInEnv = options.requireEnvFile ? true : result.envFileExists;
   return (
-    result.missingInEnv.length > 0 ||
+    (checkMissingInEnv && result.missingInEnv.length > 0) ||
     result.missingInExample.length > 0 ||
     result.secretExposures.length > 0
   );
@@ -24,10 +30,11 @@ export function hasBlockingIssues(result: AuditResult): boolean {
  */
 export function formatAuditReport(
   result: AuditResult,
-  options: { envFile?: string; exampleFile?: string } = {}
+  options: { envFile?: string; exampleFile?: string; ci?: boolean } = {}
 ): string {
   const envFile = options.envFile ?? ".env";
   const exampleFile = options.exampleFile ?? ".env.example";
+  const skipMissingInEnv = Boolean(options.ci && !result.envFileExists);
   const lines: string[] = [];
 
   lines.push("");
@@ -40,7 +47,7 @@ export function formatAuditReport(
 
   const totalIssues =
     result.secretExposures.length +
-    result.missingInEnv.length +
+    (skipMissingInEnv ? 0 : result.missingInEnv.length) +
     result.missingInExample.length +
     result.unusedInEnv.length +
     result.unusedInExample.length +
@@ -49,6 +56,11 @@ export function formatAuditReport(
 
   if (totalIssues === 0) {
     lines.push(pc.green("✔ No environment drift detected. Everything is in sync!"));
+    if (skipMissingInEnv && result.missingInEnv.length > 0) {
+      lines.push(
+        pc.dim(`  (No ${envFile} file found — skipped local ${envFile} check in CI mode)`)
+      );
+    }
     lines.push("");
     return lines.join("\n");
   }
@@ -65,11 +77,16 @@ export function formatAuditReport(
     lines.push("");
   }
 
-  if (result.missingInEnv.length > 0) {
+  if (!skipMissingInEnv && result.missingInEnv.length > 0) {
     lines.push(pc.bold(pc.red(`✖ Missing in ${envFile} (${result.missingInEnv.length})`)));
     for (const key of result.missingInEnv) {
       lines.push(`  ${pc.red("•")} ${key}${formatRefs(result.usedInCode[key])}`);
     }
+    lines.push("");
+  } else if (skipMissingInEnv && result.missingInEnv.length > 0) {
+    lines.push(
+      pc.dim(`ℹ No ${envFile} file found — skipped local ${envFile} check in CI mode`)
+    );
     lines.push("");
   }
 

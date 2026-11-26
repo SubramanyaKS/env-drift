@@ -23,6 +23,8 @@ export interface SecretExposureWarning {
 export interface AuditResult {
   rootDir: string;
   scannedFiles: number;
+  envFileExists: boolean;
+  exampleFileExists: boolean;
   usedInCode: Record<string, EnvReference[]>;
   missingInEnv: string[];
   missingInExample: string[];
