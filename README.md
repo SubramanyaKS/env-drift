@@ -11,12 +11,14 @@ Zero-config CLI and TypeScript library that detects **environment variable drift
 
 Runtime validators are great, but they require adding code and only fail *after* your app boots. `env-drift` statically audits your repo in milliseconds with **zero setup**:
 
-- **Missing in `.env`** — Catch `process.env.STRIPE_KEY` or `import.meta.env.VITE_API_URL` before runtime crashes.
+- **Missing in `.env`** — Catch `process.env.STRIPE_KEY`, `import.meta.env.VITE_API_URL`, `Bun.env.API_KEY`, or `Deno.env.get("TOKEN")` before runtime crashes.
 - **Missing in `.env.example`** — Keep teammate onboarding in sync (with `--sync` to safely append `KEY=` placeholders without ever copying secret values).
+- **Empty Values in `.env`** — Catch keys that exist in `.env` as `STRIPE_KEY=` with no value set.
 - **Unused / Dead vars** — Spot stale keys left behind in `.env` and `.env.example`.
 - **Public Secret Exposure** — Flags dangerous client-exposed names like `NEXT_PUBLIC_DB_PASSWORD` or `VITE_JWT_SECRET`.
+- **Real Secrets in `.env.example`** — Detects real API keys, tokens, JWTs, PEM private keys, and DB passwords accidentally committed to `.env.example`.
 - **Type Generation** — Auto-generate `env.d.ts` (`NodeJS.ProcessEnv` + `ImportMetaEnv`) with `--types`.
-- **CI Ready** — Drop `npx @subramanyaks/env-drift --ci` into GitHub Actions to fail PRs on drift or leaked public secrets.
+- **CI & GitHub PR Annotations** — Drop `npx @subramanyaks/env-drift --ci --format github` into GitHub Actions to annotate PR diffs directly.
 
 ## Quick Start
 
@@ -59,8 +61,9 @@ Tip: Run with --sync to safely append missing keys to .env.example.
 | `--sync` | Safely append missing keys to `.env.example` as `KEY=` | `false` |
 | `--types` | Generate `env.d.ts` for detected env variables | `false` |
 | `--types-out <path>` | Custom output path for `--types` | `env.d.ts` |
-| `--ci` | Exit with code `1` if missing vars or public secret leaks are found | `false` |
-| `--json` | Output structured JSON (`AuditResult`) | `false` |
+| `--ci` | Exit with code `1` if missing vars or secret leaks are found (skips local `.env` check when `.env` is absent) | `false` |
+| `--format <type>` | Output format: `text`, `json`, or `github` (GitHub Actions annotations) | `text` |
+| `--json` | Output structured JSON (`AuditResult`) — alias for `--format json` | `false` |
 | `-v, --version` | Print version | — |
 | `-h, --help` | Print help message | — |
 
@@ -82,12 +85,29 @@ npx @subramanyaks/env-drift --ignore VERCEL_URL,RAILWAY_ENVIRONMENT
 
 ## GitHub Actions CI Recipe
 
-Add this step to your `.github/workflows/ci.yml` to block PRs with undocumented env vars or leaked client secrets:
+Add this step to your `.github/workflows/ci.yml` to block PRs with undocumented env vars or leaked secrets and render inline PR annotations:
 
 ```yaml
 - name: Check environment drift
-  run: npx @subramanyaks/env-drift --ci
+  run: npx @subramanyaks/env-drift --ci --format github
 ```
+
+## Configuration File (Optional)
+
+You can persist options in `.envdriftrc.json` (or under an `"env-drift"` key in `package.json`):
+
+```json
+{
+  "envFile": ".env",
+  "exampleFile": ".env.example",
+  "ignore": ["VERCEL_URL", "RAILWAY_ENVIRONMENT"],
+  "ignoreDirs": ["generated"],
+  "publicPrefixes": ["CUSTOM_PUBLIC_"],
+  "sensitiveKeywords": ["MASTER_KEY"]
+}
+```
+
+CLI flags always override config file values.
 
 ## Programmatic API
 
@@ -113,10 +133,11 @@ if (hasBlockingIssues(result)) {
 
 ## What Patterns Are Detected?
 
-- `process.env.API_KEY` and `process.env?.API_KEY`
-- `process.env["API_KEY"]` and `process.env['API_KEY']`
+- `process.env.API_KEY`, `process.env?.API_KEY`, `process.env["API_KEY"]`, and `process.env?.["API_KEY"]`
 - `const { API_KEY, PORT: port = "3000" } = process.env`
 - `import.meta.env.VITE_API_URL` and destructuring from `import.meta.env`
+- `Bun.env.API_KEY`, `Bun.env["API_KEY"]`, and `Deno.env.get("API_KEY")`
+- Inline ignore comments: `// env-drift-ignore` and `// env-drift-ignore-next-line`
 - Commented-out code (`//` and `/* ... */`) is automatically ignored.
 - Standard built-ins (`NODE_ENV`, `CI`, `MODE`, `DEV`, `PROD`, `SSR`, `BASE_URL`) are ignored by default.
 

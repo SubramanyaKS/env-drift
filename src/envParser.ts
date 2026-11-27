@@ -51,16 +51,19 @@ function parseValue(raw: string): string {
 export function parseEnvContent(content: string): {
   keys: string[];
   values: Record<string, string>;
+  lines: Record<string, number>;
   duplicates: string[];
 } {
   const keys: string[] = [];
   const seen = new Set<string>();
   const duplicateSet = new Set<string>();
   const values: Record<string, string> = {};
+  const keyLines: Record<string, number> = {};
 
   const lines = content.split(/\r?\n/);
 
-  for (const rawLine of lines) {
+  for (let i = 0; i < lines.length; i++) {
+    const rawLine = lines[i]!;
     const line = rawLine.trim();
     if (!line || line.startsWith("#")) continue;
 
@@ -79,11 +82,13 @@ export function parseEnvContent(content: string): {
     }
 
     values[key] = parseValue(rawValue);
+    keyLines[key] = i + 1;
   }
 
   return {
     keys,
     values,
+    lines: keyLines,
     duplicates: Array.from(duplicateSet),
   };
 }
@@ -98,18 +103,20 @@ export function parseEnvFile(filePath: string): ParsedEnvFile {
       exists: false,
       keys: [],
       values: {},
+      lines: {},
       duplicates: [],
     };
   }
 
   const content = readFileSync(filePath, "utf-8");
-  const { keys, values, duplicates } = parseEnvContent(content);
+  const { keys, values, lines, duplicates } = parseEnvContent(content);
 
   return {
     filePath,
     exists: true,
     keys,
     values,
+    lines,
     duplicates,
   };
 }

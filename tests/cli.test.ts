@@ -103,4 +103,49 @@ describe("CLI end-to-end", () => {
     expect(code).toBe(0);
     expect(logSpy).toHaveBeenCalledWith(pkg.version);
   });
+
+  it("fails --ci when .env.example contains a real secret leak", () => {
+    writeFileSync(join(tempDir, "src", "index.ts"), "export const k = process.env.STRIPE_KEY;\n");
+    writeFileSync(
+      join(tempDir, ".env.example"),
+      "STRIPE_KEY=sk_live_1234567890abcdef1234\n"
+    );
+
+    const code = runCli(["--dir", tempDir, "--ci"]);
+    expect(code).toBe(1);
+
+    const output = logSpy.mock.calls.map((c: unknown[]) => String(c[0])).join("\n");
+    expect(output).toContain("Possible Real Secret in .env.example");
+  });
+
+  it("outputs GitHub Actions annotations with --format github", () => {
+    writeFileSync(
+      join(tempDir, "src", "db.ts"),
+      "export const pw = process.env.NEXT_PUBLIC_DB_PASSWORD;\n"
+    );
+    writeFileSync(join(tempDir, ".env.example"), "API_TOKEN=ghp_1234567890abcdefghij123456\n");
+
+    const code = runCli(["--dir", tempDir, "--ci", "--format", "github"]);
+    expect(code).toBe(1);
+
+    const output = logSpy.mock.calls.map((c: unknown[]) => String(c[0])).join("\n");
+    expect(output).toContain("::error file=src/db.ts,line=1,title=Public Secret Exposure::");
+    expect(output).toContain("::error file=.env.example,line=1,title=Secret Leak in .env.example::");
+    expect(output).toContain("::error file=src/db.ts,line=1,title=Missing in .env.example::");
+  });
+
+  it("loads .envdriftrc.json automatically and merges CLI --ignore", () => {
+    writeFileSync(
+      join(tempDir, "src", "index.ts"),
+      "export const a = process.env.CFG_IGNORED;\nexport const b = process.env.CLI_IGNORED;\n"
+    );
+    writeFileSync(
+      join(tempDir, ".envdriftrc.json"),
+      JSON.stringify({ ignore: ["CFG_IGNORED"] })
+    );
+    writeFileSync(join(tempDir, ".env.example"), "");
+
+    const code = runCli(["--dir", tempDir, "--ci", "--ignore", "CLI_IGNORED"]);
+    expect(code).toBe(0);
+  });
 });

@@ -81,4 +81,34 @@ const b = import.meta.env?.['VITE_OPT'];
       { name: "VITE_OPT", file: "src/opt.ts", line: 3, source: "import.meta.env" },
     ]);
   });
+
+  it("extracts Bun.env and Deno.env.get() references", () => {
+    const code = `
+const a = Bun.env.BUN_API_KEY;
+const b = Bun.env["BUN_SECRET"];
+const { BUN_PORT } = Bun.env;
+const c = Deno.env.get("DENO_TOKEN");
+const d = Deno.env?.get('DENO_URL');
+`;
+    const refs = extractEnvReferences(code, "src/runtime.ts");
+    expect(refs).toEqual([
+      { name: "BUN_API_KEY", file: "src/runtime.ts", line: 2, source: "Bun.env" },
+      { name: "BUN_SECRET", file: "src/runtime.ts", line: 3, source: "Bun.env" },
+      { name: "BUN_PORT", file: "src/runtime.ts", line: 4, source: "Bun.env" },
+      { name: "DENO_TOKEN", file: "src/runtime.ts", line: 5, source: "Deno.env" },
+      { name: "DENO_URL", file: "src/runtime.ts", line: 6, source: "Deno.env" },
+    ]);
+  });
+
+  it("respects env-drift-ignore and env-drift-ignore-next-line comments", () => {
+    const code = `
+const a = process.env.KEPT_KEY;
+// env-drift-ignore-next-line
+const b = process.env.IGNORED_NEXT_LINE;
+const c = process.env.IGNORED_SAME_LINE; // env-drift-ignore
+const d = process.env.ALSO_KEPT;
+`;
+    const refs = extractEnvReferences(code, "src/ignore.ts");
+    expect(refs.map((r) => r.name)).toEqual(["KEPT_KEY", "ALSO_KEPT"]);
+  });
 });

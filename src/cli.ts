@@ -5,8 +5,13 @@ import { parseArgs } from "node:util";
 import pc from "picocolors";
 import pkg from "../package.json" with { type: "json" };
 import { auditEnv } from "./analyzer.js";
+import { loadConfig } from "./config.js";
 import { syncEnvExample } from "./envParser.js";
-import { formatAuditReport, hasBlockingIssues } from "./reporter.js";
+import {
+  formatAuditReport,
+  formatGitHubAnnotations,
+  hasBlockingIssues,
+} from "./reporter.js";
 import { writeEnvTypes } from "./typegen.js";
 
 const VERSION = pkg.version;
@@ -18,17 +23,18 @@ ${pc.bold("Usage:")}
   npx @subramanyaks/env-drift [options]
 
 ${pc.bold("Options:")}
-  -d, --dir <path>        Project directory to scan (default: ".")
-      --env <file>        Local env file name (default: ".env")
-      --example <file>    Example env file name (default: ".env.example")
-      --ignore <vars>     Comma-separated env var names to ignore
-      --sync              Safely append missing keys to .env.example as KEY=
-      --types             Generate env.d.ts for detected env variables
-      --types-out <path>  Output path for --types (default: "env.d.ts")
-      --ci                Exit with code 1 if missing vars or secret leaks are found
-      --json              Output audit results as JSON
-  -v, --version           Show version
-  -h, --help              Show this help message
+  -d, --dir <path>          Project directory to scan (default: ".")
+      --env <file>          Local env file name (default: ".env")
+      --example <file>      Example env file name (default: ".env.example")
+      --ignore <vars>       Comma-separated env var names to ignore
+      --sync                Safely append missing keys to .env.example as KEY=
+      --types               Generate env.d.ts for detected env variables
+      --types-out <path>    Output path for --types (default: "env.d.ts")
+      --ci                  Exit with code 1 if missing vars or secret leaks are found
+      --format <type>       Output format: text, json, or github (default: "text")
+      --json                Output audit results as JSON (alias for --format json)
+  -v, --version             Show version
+  -h, --help                Show this help message
 `;
 
 export function runCli(argv: string[] = process.argv.slice(2)): number {
@@ -46,6 +52,7 @@ export function runCli(argv: string[] = process.argv.slice(2)): number {
         types: { type: "boolean", default: false },
         "types-out": { type: "string" },
         ci: { type: "boolean", default: false },
+        format: { type: "string" },
         json: { type: "boolean", default: false },
         version: { type: "boolean", short: "v", default: false },
         help: { type: "boolean", short: "h", default: false },
@@ -70,22 +77,54 @@ export function runCli(argv: string[] = process.argv.slice(2)): number {
     return 0;
   }
 
+  const format = values.json
+    ? "json"
+    : typeof values.format === "string"
+      ? values.format.toLowerCase()
+      : "text";
+
+  if (format !== "text" && format !== "json" && format !== "github") {
+    console.error(
+      pc.red(`Error: Invalid --format "${format}". Expected "text", "json", or "github".`)
+    );
+    return 1;
+  }
+
   const rootDir = resolve(typeof values.dir === "string" ? values.dir : process.cwd());
-  const envFile = typeof values.env === "string" ? values.env : undefined;
-  const exampleFile = typeof values.example === "string" ? values.example : ".env.example";
-  const ignore =
+
+  let fileConfig;
+  try {
+    fileConfig = loadConfig(rootDir);
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error(pc.red(`Error: ${msg}`));
+    return 1;
+  }
+
+  const envFile =
+    typeof values.env === "string" ? values.env : fileConfig.envFile;
+  const exampleFile =
+    typeof values.example === "string"
+      ? values.example
+      : (fileConfig.exampleFile ?? ".env.example");
+
+  const cliIgnore =
     typeof values.ignore === "string"
       ? values.ignore
           .split(",")
           .map((s) => s.trim())
           .filter(Boolean)
-      : undefined;
+      : [];
+  const mergedIgnore = [...(fileConfig.ignore ?? []), ...cliIgnore];
 
   const result = auditEnv({
     rootDir,
     envFile,
     exampleFile,
-    ignore,
+    ignore: mergedIgnore.length > 0 ? mergedIgnore : undefined,
+    ignoreDirs: fileConfig.ignoreDirs,
+    publicPrefixes: fileConfig.publicPrefixes,
+    sensitiveKeywords: fileConfig.sensitiveKeywords,
   });
 
   if (values.sync && result.missingInExample.length > 0) {
@@ -95,7 +134,7 @@ export function runCli(argv: string[] = process.argv.slice(2)): number {
       const addedSet = new Set(synced.added);
       result.missingInExample = result.missingInExample.filter((k) => !addedSet.has(k));
       result.exampleFileExists = true;
-      if (!values.json) {
+      if (format === "text") {
         const action = synced.created ? "Created" : "Updated";
         console.log(
           pc.green(`✔ ${action} ${exampleFile} with ${synced.added.length} key(s): ${synced.added.join(", ")}`)
@@ -109,13 +148,22 @@ export function runCli(argv: string[] = process.argv.slice(2)): number {
       typeof values["types-out"] === "string" ? values["types-out"] : "env.d.ts";
     const outputPath = resolve(rootDir, outFile);
     const generated = writeEnvTypes(outputPath, result);
-    if (!values.json) {
+    if (format === "text") {
       console.log(pc.green(`✔ Generated ${outFile} (${generated.count} env var(s))`));
     }
   }
 
-  if (values.json) {
+  if (format === "json") {
     console.log(JSON.stringify(result, null, 2));
+  } else if (format === "github") {
+    const annotations = formatGitHubAnnotations(result, {
+      envFile: envFile ?? ".env",
+      exampleFile,
+      ci: Boolean(values.ci),
+    });
+    if (annotations) {
+      console.log(annotations);
+    }
   } else {
     console.log(
       formatAuditReport(result, {

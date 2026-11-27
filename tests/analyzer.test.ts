@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { auditEnv, detectSecretExposure } from "../src/analyzer.js";
+import { auditEnv, detectExampleSecretLeak, detectSecretExposure } from "../src/analyzer.js";
 
 describe("analyzer", () => {
   let tempDir: string;
@@ -89,5 +89,81 @@ UNUSED_EXAMPLE=
     const localOnly = auditEnv({ rootDir: tempDir });
     expect(localOnly.envFileExists).toBe(true);
     expect(localOnly.exampleFileExists).toBe(true);
+  });
+
+  it("detects empty values in .env and respects .env.local overrides", () => {
+    writeFileSync(
+      join(tempDir, "src", "app.ts"),
+      `
+const a = process.env.EMPTY_KEY;
+const b = process.env.OVERRIDDEN_KEY;
+const c = process.env.SET_KEY;
+`
+    );
+    writeFileSync(
+      join(tempDir, ".env"),
+      `EMPTY_KEY=
+OVERRIDDEN_KEY=
+SET_KEY=hello
+`
+    );
+    writeFileSync(join(tempDir, ".env.local"), "OVERRIDDEN_KEY=populated\n");
+    writeFileSync(
+      join(tempDir, ".env.example"),
+      "EMPTY_KEY=\nOVERRIDDEN_KEY=\nSET_KEY=\n"
+    );
+
+    const result = auditEnv({ rootDir: tempDir });
+    expect(result.emptyInEnv).toEqual(["EMPTY_KEY"]);
+  });
+
+  it("detects real secrets accidentally committed in .env.example while ignoring placeholders", () => {
+    expect(detectExampleSecretLeak("STRIPE_KEY", "sk_live_1234567890abcdef1234")).toBe(
+      "Stripe live secret key"
+    );
+    expect(detectExampleSecretLeak("GITHUB_TOKEN", "ghp_1234567890abcdefghij123456")).toBe(
+      "GitHub access token"
+    );
+    expect(detectExampleSecretLeak("AWS_KEY", "AKIAIOSFODNN7EXAMPLE")).toBe(
+      "AWS Access Key ID"
+    );
+    expect(
+      detectExampleSecretLeak(
+        "DATABASE_URL",
+        "postgres://admin:S3cur3Pr0dPass99@db.example.com:5432/prod"
+      )
+    ).toBe("Connection URL with embedded password");
+
+    // Placeholders and empty values should not be flagged
+    expect(detectExampleSecretLeak("STRIPE_KEY", "")).toBeNull();
+    expect(detectExampleSecretLeak("STRIPE_KEY", "your_stripe_key_here")).toBeNull();
+    expect(detectExampleSecretLeak("STRIPE_KEY", "changeme")).toBeNull();
+    expect(
+      detectExampleSecretLeak("DATABASE_URL", "postgres://postgres:password@localhost:5432/dev")
+    ).toBeNull();
+  });
+
+  it("supports custom ignoreDirs, publicPrefixes, and sensitiveKeywords", () => {
+    mkdirSync(join(tempDir, "generated"), { recursive: true });
+    writeFileSync(
+      join(tempDir, "generated", "client.ts"),
+      "export const x = process.env.IGNORED_GEN_KEY;\n"
+    );
+    writeFileSync(
+      join(tempDir, "src", "app.ts"),
+      "export const y = process.env.CUSTOM_PUBLIC_MASTER_KEY;\n"
+    );
+    writeFileSync(join(tempDir, ".env.example"), "CUSTOM_PUBLIC_MASTER_KEY=\n");
+
+    const result = auditEnv({
+      rootDir: tempDir,
+      ignoreDirs: ["generated"],
+      publicPrefixes: ["CUSTOM_PUBLIC_"],
+      sensitiveKeywords: ["MASTER_KEY"],
+    });
+
+    expect(result.usedInCode).not.toHaveProperty("IGNORED_GEN_KEY");
+    expect(result.secretExposures).toHaveLength(1);
+    expect(result.secretExposures[0]?.name).toBe("CUSTOM_PUBLIC_MASTER_KEY");
   });
 });
